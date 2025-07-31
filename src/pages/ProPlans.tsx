@@ -8,17 +8,17 @@ const ProPlans: React.FC = () => {
       name: 'Basic',
       price: '$9.99',
       period: 'month',
-      description: 'Perfect for individual homeowners',
+      description: 'Perfect for individual property owners',
       features: [
         'Up to 5 analyses per month',
-        'Basic 2D to 3D conversion',
-        'Fire safety assessment',
-        'Structural analysis',
+        'AI-powered image analysis',
+        'Basic risk assessment',
+        'Safety recommendations',
         'PDF reports',
         'Email support'
       ],
       limitations: [
-        'No earthquake analysis',
+        'No advanced risk scoring',
         'No detailed recommendations',
         'No priority support'
       ],
@@ -31,10 +31,10 @@ const ProPlans: React.FC = () => {
       description: 'Ideal for property managers and inspectors',
       features: [
         'Unlimited analyses',
-        'Advanced 3D modeling',
+        'Advanced AI analysis',
         'Complete risk assessment',
-        'Earthquake resistance analysis',
-        'Detailed recommendations',
+        'Detailed safety scoring',
+        'Comprehensive recommendations',
         'Custom branding on reports',
         'Priority support',
         'API access'
@@ -63,7 +63,10 @@ const ProPlans: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
+      <div className="flex justify-center mb-8 pt-8">
+        <img src="/assets/images/logo.jpeg" alt="Plan2Protect Logo" className="h-20 w-auto object-contain" />
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -72,7 +75,7 @@ const ProPlans: React.FC = () => {
           className="text-center mb-16"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Choose Your <span className="bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">Pro Plan</span>
+            Choose Your <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Pro Plan</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Unlock advanced AI capabilities and detailed risk analysis with our professional plans
@@ -92,7 +95,7 @@ const ProPlans: React.FC = () => {
             >
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-6 py-2 rounded-full text-sm font-semibold">
+                  <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-2 rounded-full text-sm font-semibold">
                     Most Popular
                   </span>
                 </div>
@@ -103,77 +106,81 @@ const ProPlans: React.FC = () => {
                 <p className="text-gray-600 mb-4">{plan.description}</p>
                 <div className="flex items-baseline justify-center">
                   <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                  <span className="text-gray-600 ml-1">/{plan.period}</span>
+                  <span className="text-gray-500 ml-1">/{plan.period}</span>
                 </div>
               </div>
 
-              <ul className="space-y-4 mb-8">
+              <div className="space-y-4 mb-8">
+                <h4 className="font-semibold text-gray-900 mb-3">Features:</h4>
                 {plan.features.map((feature, featureIndex) => (
-                  <li key={featureIndex} className="flex items-start">
-                    <CheckIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <div key={featureIndex} className="flex items-center">
+                    <CheckIcon className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
                     <span className="text-gray-700">{feature}</span>
-                  </li>
+                  </div>
                 ))}
-                {plan.limitations.map((limitation, limitationIndex) => (
-                  <li key={limitationIndex} className="flex items-start">
-                    <XMarkIcon className="h-5 w-5 text-red-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-400">{limitation}</span>
-                  </li>
-                ))}
-              </ul>
+                
+                {plan.limitations.length > 0 && (
+                  <>
+                    <h4 className="font-semibold text-gray-900 mb-3 mt-6">Limitations:</h4>
+                    {plan.limitations.map((limitation, limitationIndex) => (
+                      <div key={limitationIndex} className="flex items-center">
+                        <XMarkIcon className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
+                        <span className="text-gray-500">{limitation}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
 
-              <button
-                className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 ${
-                  plan.popular
-                    ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white hover:from-blue-600 hover:to-teal-600 shadow-lg hover:shadow-xl'
-                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                Get Started
+              <button className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+                Choose {plan.name}
               </button>
             </motion.div>
           ))}
         </div>
 
-        {/* Features Comparison */}
+        {/* Comparison Table */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
           className="bg-white rounded-2xl shadow-lg p-8"
         >
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Feature Comparison</h2>
-          
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Feature Comparison</h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Features</th>
-                  <th className="text-center py-4 px-6 font-semibold text-gray-900">Free</th>
-                  <th className="text-center py-4 px-6 font-semibold text-gray-900">Basic</th>
-                  <th className="text-center py-4 px-6 font-semibold text-gray-900">Professional</th>
-                  <th className="text-center py-4 px-6 font-semibold text-gray-900">Enterprise</th>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Feature</th>
+                  <th className="text-center py-3 px-4 font-semibold text-gray-900">Basic</th>
+                  <th className="text-center py-3 px-4 font-semibold text-gray-900">Professional</th>
+                  <th className="text-center py-3 px-4 font-semibold text-gray-900">Enterprise</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  ['Analyses per month', '1', '5', 'Unlimited', 'Unlimited'],
-                  ['2D to 3D conversion', '✓', '✓', '✓', '✓'],
-                  ['Fire safety analysis', '✓', '✓', '✓', '✓'],
-                  ['Structural analysis', 'Basic', '✓', '✓', '✓'],
-                  ['Earthquake analysis', '✗', '✗', '✓', '✓'],
-                  ['Custom branding', '✗', '✗', '✓', '✓'],
-                  ['API access', '✗', '✗', '✓', '✓'],
-                  ['Priority support', '✗', '✗', '✓', '✓'],
-                  ['White-label solution', '✗', '✗', '✗', '✓'],
+                  ['AI image analysis', '✓', '✓', '✓'],
+                  ['Risk assessment scoring', '✓', '✓', '✓'],
+                  ['Safety recommendations', '✓', '✓', '✓'],
+                  ['Property detail analysis', '✓', '✓', '✓'],
+                  ['PDF report download', '✓', '✓', '✓'],
+                  ['Advanced risk scoring', '✗', '✓', '✓'],
+                  ['Detailed recommendations', '✗', '✓', '✓'],
+                  ['API access', '✗', '✓', '✓'],
+                  ['Custom AI training', '✗', '✗', '✓'],
+                  ['White-label solution', '✗', '✗', '✓']
                 ].map((row, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50">
-                    <td className="py-4 px-6 font-medium text-gray-900">{row[0]}</td>
-                    <td className="py-4 px-6 text-center text-gray-600">{row[1]}</td>
-                    <td className="py-4 px-6 text-center text-gray-600">{row[2]}</td>
-                    <td className="py-4 px-6 text-center text-gray-600">{row[3]}</td>
-                    <td className="py-4 px-6 text-center text-gray-600">{row[4]}</td>
+                  <tr key={index} className="border-b border-gray-100">
+                    <td className="py-3 px-4 text-gray-700">{row[0]}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={row[1] === '✓' ? 'text-green-500' : 'text-red-500'}>{row[1]}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={row[2] === '✓' ? 'text-green-500' : 'text-red-500'}>{row[2]}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={row[3] === '✓' ? 'text-green-500' : 'text-red-500'}>{row[3]}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -184,33 +191,32 @@ const ProPlans: React.FC = () => {
         {/* FAQ Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mt-16 text-center"
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.6 }}
+          className="mt-16 bg-white rounded-2xl shadow-lg p-8"
         >
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">Frequently Asked Questions</h2>
-          <div className="grid md:grid-cols-2 gap-8 text-left">
+          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Frequently Asked Questions</h2>
+          <div className="grid md:grid-cols-2 gap-8">
             {[
-              {
-                question: "Can I upgrade or downgrade my plan anytime?",
-                answer: "Yes, you can change your plan at any time. Changes take effect immediately for upgrades and at the next billing cycle for downgrades."
-              },
-              {
-                question: "Is there a money-back guarantee?",
-                answer: "We offer a 30-day money-back guarantee for all paid plans. If you're not satisfied, contact us for a full refund."
-              },
               {
                 question: "How accurate is the AI analysis?",
                 answer: "Our AI models achieve 95%+ accuracy in risk detection. However, professional inspection is always recommended for critical decisions."
               },
               {
-                question: "Do you offer custom solutions?",
+                question: "Can I customize the analysis for my specific needs?",
                 answer: "Yes, our Enterprise plan includes custom AI model training and integrations tailored to your specific needs."
+              },
+              {
+                question: "What types of images can I analyze?",
+                answer: "We support all common image formats (PNG, JPG, JPEG) and can analyze floor plans, property photos, and structural images."
+              },
+              {
+                question: "Is my data secure?",
+                answer: "Yes, we use enterprise-grade encryption and never share your data with third parties. All analyses are confidential."
               }
             ].map((faq, index) => (
-              <div key={index} className="bg-white p-6 rounded-xl shadow-md">
-                <h3 className="font-semibold text-gray-900 mb-2">{faq.question}</h3>
+              <div key={index} className="space-y-2">
+                <h3 className="font-semibold text-gray-900">{faq.question}</h3>
                 <p className="text-gray-600">{faq.answer}</p>
               </div>
             ))}

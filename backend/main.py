@@ -1,8 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import torch
-import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 import cv2
@@ -11,6 +9,7 @@ import io
 import os
 from pathlib import Path
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,71 +26,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for models
-midas_model = None
-midas_transform = None
-
-def load_midas_model():
-    """Load MiDaS model for depth estimation"""
-    global midas_model, midas_transform
-    try:
-        # Load MiDaS model
-        midas_model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small")
-        midas_model.eval()
-        
-        # MiDaS transform
-        midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").small_transform
-        
-        logger.info("MiDaS model loaded successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to load MiDaS model: {e}")
-        return False
-
-def generate_depth_map(image: Image.Image) -> str:
-    """Generate depth map from image using MiDaS"""
-    try:
-        # Convert PIL image to numpy array
-        img_array = np.array(image)
-        
-        # Apply MiDaS transform
-        input_tensor = midas_transform(img_array)
-        
-        # Generate depth map
-        with torch.no_grad():
-            depth = midas_model(input_tensor.unsqueeze(0))
-            depth = depth.squeeze().cpu().numpy()
-        
-        # Normalize depth map
-        depth_normalized = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        
-        # Apply colormap for visualization
-        depth_colored = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_PLASMA)
-        
-        # Convert to base64
-        _, buffer = cv2.imencode('.png', depth_colored)
-        depth_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-        return f"data:image/png;base64,{depth_base64}"
-        
-    except Exception as e:
-        logger.error(f"Error generating depth map: {e}")
-        # Return a simple gradient as fallback
-        fallback_img = np.zeros((400, 400, 3), dtype=np.uint8)
-        gradient = np.linspace(0, 255, 400).astype(np.uint8)
-        for i in range(400):
-            fallback_img[i, :] = [gradient[i], gradient[i] // 2, 255 - gradient[i]]
-        
-        _, buffer = cv2.imencode('.png', fallback_img)
-        fallback_base64 = base64.b64encode(buffer).decode('utf-8')
-        return f"data:image/png;base64,{fallback_base64}"
-
-def analyze_floor_plan(image: Image.Image, home_details: dict = None) -> str:
-    """Analyze floor plan and generate risk report"""
+def analyze_image_for_risks(image: Image.Image, home_details: dict = None) -> dict:
+    """Analyze image for safety risks and provide recommendations"""
     try:
         # Get image dimensions and basic analysis
         width, height = image.size
         aspect_ratio = width / height
+        
+        # Convert to numpy array for analysis
+        img_array = np.array(image)
         
         # Extract home details
         building_material = home_details.get('buildingMaterial', 'Not specified') if home_details else 'Not specified'
@@ -104,236 +47,274 @@ def analyze_floor_plan(image: Image.Image, home_details: dict = None) -> str:
         roof_material = home_details.get('roofMaterial', 'Not specified') if home_details else 'Not specified'
         additional_notes = home_details.get('additionalNotes', '') if home_details else ''
         
-        # Mock AI analysis based on image characteristics
-        # In a real implementation, this would use OpenChat/DeepSeek models
+        # Analyze image characteristics
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         
-        # Calculate some basic metrics
-        total_pixels = width * height
-        complexity_score = min(10, total_pixels / 10000)  # Simplified complexity
+        # Detect edges for structural analysis
+        edges = cv2.Canny(gray, 50, 150)
+        edge_density = np.sum(edges > 0) / (width * height)
         
-        # Adjust scores based on home details
-        fire_score = 8.2
-        structural_score = 7.8
-        earthquake_score = 7.1
+        # Analyze brightness and contrast
+        brightness = np.mean(gray)
+        contrast = np.std(gray)
         
-        if building_material == 'wood':
-            fire_score -= 1.5
-        elif building_material == 'concrete':
-            fire_score += 0.5
-            earthquake_score += 0.8
+        # Generate risk analysis based on image characteristics and home details
+        risks = []
+        recommendations = []
+        risk_score = 0
         
-        if building_age and building_age.isdigit() and int(building_age) > 50:
-            structural_score -= 1.2
-            earthquake_score -= 0.8
+        # Structural analysis based on edge density
+        if edge_density > 0.1:
+            risks.append("High structural complexity detected - may indicate potential structural concerns")
+            recommendations.append("Consider professional structural inspection")
+            risk_score += 30
+        elif edge_density < 0.02:
+            risks.append("Low detail in floor plan - may miss important structural elements")
+            recommendations.append("Provide more detailed floor plan for accurate analysis")
+            risk_score += 15
         
-        if foundation_type == 'slab':
-            earthquake_score += 1.0
-        elif foundation_type == 'pier':
-            earthquake_score -= 0.5
+        # Building age analysis
+        if building_age != 'Not specified':
+            try:
+                age = int(building_age)
+                if age > 50:
+                    risks.append(f"Building age ({age} years) may indicate outdated construction standards")
+                    recommendations.append("Schedule comprehensive building inspection")
+                    risk_score += 25
+                elif age > 30:
+                    risks.append(f"Building age ({age} years) - consider updating electrical and plumbing systems")
+                    recommendations.append("Review and update critical systems")
+                    risk_score += 15
+            except ValueError:
+                pass
         
-        overall_score = (fire_score + structural_score + earthquake_score) / 3
+        # Building material analysis
+        if building_material.lower() in ['wood', 'timber']:
+            risks.append("Wooden construction requires regular fire safety inspections")
+            recommendations.append("Install smoke detectors and fire suppression systems")
+            risk_score += 20
+        elif building_material.lower() in ['concrete', 'steel']:
+            risks.append("Concrete/steel construction - check for structural integrity")
+            recommendations.append("Regular structural assessments recommended")
+            risk_score += 10
+        
+        # Heating system analysis
+        if heating_system.lower() in ['gas', 'oil']:
+            risks.append("Gas/oil heating systems require regular maintenance and safety checks")
+            recommendations.append("Annual heating system inspection and maintenance")
+            risk_score += 15
+        
+        # Foundation analysis
+        if foundation_type.lower() in ['basement', 'crawl space']:
+            risks.append("Basement/crawl space foundations require moisture and structural monitoring")
+            recommendations.append("Regular foundation inspections and moisture control")
+            risk_score += 20
+        
+        # Roof material analysis
+        if roof_material.lower() in ['asphalt', 'wood']:
+            risks.append("Asphalt/wood roofing requires regular maintenance and replacement")
+            recommendations.append("Schedule roof inspection and maintenance plan")
+            risk_score += 15
+        
+        # Image quality analysis
+        if brightness < 100:
+            risks.append("Low image brightness may indicate poor lighting conditions")
+            recommendations.append("Improve lighting for better image quality")
+            risk_score += 10
+        
+        if contrast < 30:
+            risks.append("Low image contrast may affect analysis accuracy")
+            recommendations.append("Use higher contrast images for better analysis")
+            risk_score += 10
         
         # Generate comprehensive report
-        report = f"""# Home Risk Analysis Report
+        report = f"""AI IMAGE ANALYSIS REPORT
 
-## Executive Summary
-Based on the uploaded floor plan analysis ({width}x{height} pixels) and provided home details, we've conducted a comprehensive safety assessment.
+PROPERTY DETAILS:
+- Building Material: {building_material}
+- Building Age: {building_age}
+- Number of Floors: {floors}
+- Square Footage: {square_footage}
+- Location: {location}
+- Heating System: {heating_system}
+- Foundation Type: {foundation_type}
+- Roof Material: {roof_material}
 
-## Property Information
-- **Building Material**: {building_material}
-- **Building Age**: {building_age} years
-- **Number of Floors**: {floors}
-- **Square Footage**: {square_footage} sq ft
-- **Location**: {location}
-- **Heating System**: {heating_system}
-- **Foundation Type**: {foundation_type}
-- **Roof Material**: {roof_material}
+IMAGE ANALYSIS:
+- Image Dimensions: {width}x{height} pixels
+- Aspect Ratio: {aspect_ratio:.2f}
+- Edge Density: {edge_density:.3f}
+- Brightness Level: {brightness:.1f}
+- Contrast Level: {contrast:.1f}
 
-## Image Analysis Metrics
-- **Floor Plan Dimensions**: {width} x {height} pixels
-- **Aspect Ratio**: {aspect_ratio:.2f}
-- **Complexity Score**: {complexity_score:.1f}/10
+RISK ASSESSMENT:
+Risk Score: {risk_score}/100 ({'High' if risk_score > 70 else 'Medium' if risk_score > 40 else 'Low'} Risk)
 
-## Fire Safety Assessment
-- **Overall Score**: {fire_score:.1f}/10
-- **Exit Routes**: Multiple egress points identified
-- **Recommendations**:
-  - Install smoke detectors in all bedrooms and hallways
-  - Ensure fire extinguisher placement near kitchen areas
-  - Consider escape ladder for upper floors
-  - Maintain clear exit pathways
-{f"  - **CRITICAL**: {building_material.title()} construction requires enhanced fire safety measures" if building_material == 'wood' else ""}
+IDENTIFIED RISKS:
+{chr(10).join(f"• {risk}" for risk in risks) if risks else "• No significant risks detected in this analysis"}
 
-## Structural Analysis
-- **Overall Score**: {structural_score:.1f}/10
-- **Load Distribution**: Generally good structural layout
-- **Potential Concerns**:
-  - Large open spaces may require additional beam support
-  - Verify load-bearing wall locations with structural engineer
-- **Recommendations**:
-  - Professional structural inspection recommended
-  - Consider seismic retrofitting in earthquake-prone areas
-{f"  - **NOTE**: Building age ({building_age} years) may require structural updates" if building_age and building_age.isdigit() and int(building_age) > 30 else ""}
+RECOMMENDATIONS:
+{chr(10).join(f"• {rec}" for rec in recommendations) if recommendations else "• Continue regular maintenance and monitoring"}
 
-## Earthquake Resistance Evaluation
-- **Overall Score**: {earthquake_score:.1f}/10
-- **Building Orientation**: Favorable for seismic activity
-- **Critical Improvements Needed**:
-  - Reinforce connections between floors and walls
-  - Add seismic anchoring for heavy appliances
-  - Consider flexible utility connections
-  - Upgrade older structural elements to current codes
-{f"- **ADVANTAGE**: {foundation_type.title()} foundation provides good seismic stability" if foundation_type == 'slab' else ""}
-{f"- **CONCERN**: {foundation_type.title()} foundation may need seismic reinforcement" if foundation_type == 'pier' else ""}
+ADDITIONAL NOTES:
+{additional_notes if additional_notes else "No additional notes provided"}
 
-## Safety Recommendations (Priority Order)
-
-### High Priority
-1. **Install comprehensive smoke detection system** - Critical for early fire detection
-2. **Verify structural integrity** - Professional inspection within 6 months
-3. **Seismic retrofitting assessment** - Especially important in earthquake zones
-{f"4. **Material-specific safety upgrades** - {building_material.title()} construction considerations" if building_material != 'Not specified' else ""}
-
-### Medium Priority
-4. **Improve emergency lighting** - Battery-powered exit signs and flashlights
-5. **Upgrade electrical systems** - Ensure GFCI protection in wet areas
-6. **Window security** - Consider security film or bars on ground floor
-{f"7. **Heating system maintenance** - Regular {heating_system} system inspection" if heating_system != 'Not specified' else ""}
-
-### Low Priority
-7. **Carbon monoxide detection** - Install near fuel-burning appliances
-8. **Security system integration** - Modern alarm systems with mobile alerts
-
-## Cost-Benefit Analysis
-- **Immediate safety improvements**: $500-$1,500
-- **Structural enhancements**: $2,000-$10,000
-- **Full seismic retrofit**: $15,000-$50,000
-- **Estimated property value increase**: 5-15%
-
-## Compliance Notes
-- Most recommendations align with current building codes
-- Some older structures may require grandfathered exceptions
-- Consult local building department for permit requirements
-
-## Overall Safety Rating: {overall_score:.1f}/10
-Your home shows good overall safety characteristics with several opportunities for targeted improvements that could significantly enhance occupant safety.
-
-{f"## Additional Notes\\n{additional_notes}" if additional_notes else ""}
-
-## Next Steps
-1. Schedule professional structural inspection
-2. Obtain quotes for recommended safety improvements
-3. Prioritize fire safety upgrades
-4. Consider comprehensive insurance review
-
-*This analysis is based on AI image processing and should be supplemented with professional inspection for critical safety decisions.*
-
-Generated on: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+This analysis is based on AI image processing and should be supplemented with professional inspections for critical decisions.
 """
         
-        return report
+        return {
+            "risk_score": risk_score,
+            "risks": risks,
+            "recommendations": recommendations,
+            "analysis_report": report,
+            "image_analysis": {
+                "dimensions": f"{width}x{height}",
+                "aspect_ratio": aspect_ratio,
+                "edge_density": edge_density,
+                "brightness": brightness,
+                "contrast": contrast
+            }
+        }
         
     except Exception as e:
-        logger.error(f"Error analyzing floor plan: {e}")
-        return "Error generating analysis report. Please try again."
+        logger.error(f"Error analyzing image: {e}")
+        return {
+            "risk_score": 0,
+            "risks": ["Error analyzing image"],
+            "recommendations": ["Please try uploading a different image"],
+            "analysis_report": f"Error during analysis: {str(e)}",
+            "image_analysis": {}
+        }
+
+def generate_analysis_visualization(image: Image.Image, analysis_result: dict) -> str:
+    """Generate a visualization of the analysis results"""
+    try:
+        # Create a visualization image
+        img_array = np.array(image)
+        height, width = img_array.shape[:2]
+        
+        # Create overlay image
+        overlay = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Add risk level color coding
+        risk_score = analysis_result.get('risk_score', 0)
+        if risk_score > 70:
+            color = (0, 0, 255)  # Red for high risk
+        elif risk_score > 40:
+            color = (0, 165, 255)  # Orange for medium risk
+        else:
+            color = (0, 255, 0)  # Green for low risk
+        
+        # Create a semi-transparent overlay
+        overlay = np.full((height, width, 3), color, dtype=np.uint8)
+        overlay = cv2.addWeighted(img_array, 0.7, overlay, 0.3, 0)
+        
+        # Add text overlay
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(overlay, f"Risk Score: {risk_score}/100", (10, 30), font, 1, (255, 255, 255), 2)
+        
+        # Convert to base64
+        _, buffer = cv2.imencode('.png', overlay)
+        overlay_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        return f"data:image/png;base64,{overlay_base64}"
+        
+    except Exception as e:
+        logger.error(f"Error generating visualization: {e}")
+        # Return original image as fallback
+        _, buffer = cv2.imencode('.png', np.array(image))
+        fallback_base64 = base64.b64encode(buffer).decode('utf-8')
+        return f"data:image/png;base64,{fallback_base64}"
 
 @app.on_event("startup")
 async def startup_event():
-    """Load AI models on startup"""
-    logger.info("Loading AI models...")
-    if not load_midas_model():
-        logger.warning("MiDaS model loading failed - using fallback methods")
+    """Initialize application on startup"""
+    logger.info("Plan2Protect API starting up...")
+    logger.info("AI Image Analysis System ready")
 
 @app.get("/")
 async def root():
-    return {"message": "Plan2Protect API is running", "version": "1.0.0"}
+    return {"message": "Plan2Protect AI Image Analysis API"}
 
 @app.get("/health")
 async def health_check():
     return {
         "status": "healthy",
-        "midas_loaded": midas_model is not None,
-        "timestamp": __import__('datetime').datetime.now().isoformat()
+        "service": "Plan2Protect AI Image Analysis",
+        "version": "1.0.0"
     }
 
 @app.post("/analyze")
-async def analyze_floor_plan_endpoint(file: UploadFile = File(...), homeDetails: str = None):
-    """Analyze uploaded floor plan image"""
+async def analyze_image_endpoint(
+    file: UploadFile = File(...),
+    homeDetails: str = Form(None)  # <-- Parse homeDetails from form
+):
+    """Analyze uploaded image for safety risks and provide recommendations"""
     try:
         # Validate file type
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="File must be an image")
         
+        # Read and process image
+        image_data = await file.read()
+        image = Image.open(io.BytesIO(image_data))
+        
         # Parse home details if provided
-        details = {}
+        home_details = None
         if homeDetails:
             try:
-                details = __import__('json').loads(homeDetails)
-            except:
-                details = {}
+                home_details = json.loads(homeDetails)
+            except json.JSONDecodeError:
+                logger.warning("Invalid home details JSON format")
         
-        # Read and process image
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents)).convert('RGB')
+        # Perform AI analysis
+        analysis_result = analyze_image_for_risks(image, home_details)
         
-        # Resize if too large
-        max_size = 1024
-        if max(image.size) > max_size:
-            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        # Generate visualization
+        visualization = generate_analysis_visualization(image, analysis_result)
         
-        # Generate depth map
-        logger.info("Generating depth map...")
-        depth_map = generate_depth_map(image)
-        
-        # Generate risk analysis report
-        logger.info("Generating risk analysis report...")
-        risk_report = analyze_floor_plan(image, details)
-        
-        return JSONResponse({
+        return {
             "success": True,
-            "depth_map": depth_map,
-            "risk_report": risk_report,
-            "processing_time": "2.3 seconds",
-            "image_size": f"{image.size[0]}x{image.size[1]}"
-        })
+            "analysis": analysis_result,
+            "visualization": visualization,
+            "message": "Image analysis completed successfully"
+        }
         
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
+        logger.error(f"Error in analyze endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.post("/analyze-batch")
-async def analyze_multiple_plans(files: list[UploadFile] = File(...)):
-    """Analyze multiple floor plans in batch"""
-    if len(files) > 5:
-        raise HTTPException(status_code=400, detail="Maximum 5 files allowed")
-    
-    results = []
-    for file in files:
-        try:
-            contents = await file.read()
-            image = Image.open(io.BytesIO(contents)).convert('RGB')
+async def analyze_multiple_images(files: list[UploadFile] = File(...)):
+    """Analyze multiple images for batch processing"""
+    try:
+        results = []
+        
+        for file in files:
+            if not file.content_type.startswith('image/'):
+                continue
+                
+            image_data = await file.read()
+            image = Image.open(io.BytesIO(image_data))
             
-            if max(image.size) > 1024:
-                image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
-            
-            depth_map = generate_depth_map(image)
-            risk_report = analyze_floor_plan(image)
+            analysis_result = analyze_image_for_risks(image)
+            visualization = generate_analysis_visualization(image, analysis_result)
             
             results.append({
                 "filename": file.filename,
-                "success": True,
-                "depth_map": depth_map,
-                "risk_report": risk_report
+                "analysis": analysis_result,
+                "visualization": visualization
             })
-            
-        except Exception as e:
-            results.append({
-                "filename": file.filename,
-                "success": False,
-                "error": str(e)
-            })
-    
-    return JSONResponse({"results": results})
+        
+        return {
+            "success": True,
+            "results": results,
+            "total_analyzed": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in batch analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Batch analysis failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -32,20 +32,26 @@ const Navbar: React.FC = () => {
                 className="w-10 h-10 rounded-lg overflow-hidden"
               >
                 <img 
-                  src="/assets/images/logo-small.png" 
+                  src="/assets/images/logo-small.jpeg" 
                   alt="Plan2Protect Logo" 
                   className="w-full h-full object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                    const sibling = e.currentTarget.nextElementSibling;
+                    if (sibling && sibling instanceof HTMLElement) {
+                      sibling.style.display = 'flex';
+                    }
                   }}
                 />
                 <div className="w-full h-full bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg flex items-center justify-center" style={{display: 'none'}}>
                   <span className="text-white font-bold text-xl">P2P</span>
                 </div>
               </motion.div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+              <span className="hidden md:inline text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                 Plan2Protect
+              </span>
+              <span className="md:hidden text-lg font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+                P2P
               </span>
             </Link>
           </div>
